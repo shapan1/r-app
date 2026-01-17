@@ -10,10 +10,21 @@ export function useReservations(date: string) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Delete old reservations (from previous days)
+  const deleteOldReservations = useCallback(async () => {
+    await supabase
+      .from('reservations')
+      .delete()
+      .lt('date', date);
+  }, [date]);
+
   // Fetch reservations for the given date
   const fetchReservations = useCallback(async () => {
     setLoading(true);
     setError(null);
+
+    // Clean up old data first
+    await deleteOldReservations();
 
     const { data, error: fetchError } = await supabase
       .from('reservations')
@@ -28,7 +39,7 @@ export function useReservations(date: string) {
       setReservations(data || []);
     }
     setLoading(false);
-  }, [date]);
+  }, [date, deleteOldReservations]);
 
   // Subscribe to real-time changes
   useEffect(() => {
@@ -93,12 +104,17 @@ export function useReservations(date: string) {
 
   // Delete a reservation
   const deleteReservation = async (id: string): Promise<boolean> => {
+    // Optimistic update - remove from UI immediately
+    setReservations((prev) => prev.filter((r) => r.id !== id));
+
     const { error: deleteError } = await supabase
       .from('reservations')
       .delete()
       .eq('id', id);
 
     if (deleteError) {
+      // Revert on error - refetch to restore
+      fetchReservations();
       setError(deleteError.message);
       return false;
     }
@@ -122,12 +138,31 @@ export function useReservations(date: string) {
     [getSlotReservations]
   );
 
+  // Clear all reservations (wipe entire table)
+  const clearAllReservations = async (): Promise<boolean> => {
+    setReservations([]);
+
+    const { error: deleteError } = await supabase
+      .from('reservations')
+      .delete()
+      .gte('id', '00000000-0000-0000-0000-000000000000'); // Delete all rows
+
+    if (deleteError) {
+      fetchReservations();
+      setError(deleteError.message);
+      return false;
+    }
+
+    return true;
+  };
+
   return {
     reservations,
     loading,
     error,
     addReservation,
     deleteReservation,
+    clearAllReservations,
     getSlotReservations,
     isSlotFull,
     clearError: () => setError(null),

@@ -9,14 +9,15 @@ import { AddPatientModal } from './AddPatientModal';
 import { PatientDetails } from './PatientDetails';
 
 export function ReservationGrid() {
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const dateString = formatDate(currentDate);
+  const today = new Date();
+  const dateString = formatDate(today);
 
   const {
     loading,
     error,
     addReservation,
     deleteReservation,
+    clearAllReservations,
     getSlotReservations,
     isSlotFull,
     clearError,
@@ -24,22 +25,8 @@ export function ReservationGrid() {
 
   const [addingSlot, setAddingSlot] = useState<string | null>(null);
   const [selectedPatient, setSelectedPatient] = useState<Reservation | null>(null);
-
-  function handlePrevDay() {
-    const prev = new Date(currentDate);
-    prev.setDate(prev.getDate() - 1);
-    setCurrentDate(prev);
-  }
-
-  function handleNextDay() {
-    const next = new Date(currentDate);
-    next.setDate(next.getDate() + 1);
-    setCurrentDate(next);
-  }
-
-  function handleToday() {
-    setCurrentDate(new Date());
-  }
+  const [clearing, setClearing] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   async function handleAddPatient(patient: {
     patient_name: string;
@@ -58,6 +45,13 @@ export function ReservationGrid() {
   async function handleDeletePatient() {
     if (!selectedPatient) return false;
     return deleteReservation(selectedPatient.id);
+  }
+
+  async function handleClearAll() {
+    setClearing(true);
+    await clearAllReservations();
+    setClearing(false);
+    setShowClearConfirm(false);
   }
 
   // Build rows for the unified table
@@ -153,12 +147,7 @@ export function ReservationGrid() {
 
   return (
     <div className="flex min-h-screen flex-col bg-zinc-50 dark:bg-zinc-950">
-      <DatePicker
-        date={currentDate}
-        onPrevDay={handlePrevDay}
-        onNextDay={handleNextDay}
-        onToday={handleToday}
-      />
+      <DatePicker date={today} />
 
       {error && (
         <div className="mx-4 mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
@@ -207,6 +196,16 @@ export function ReservationGrid() {
         )}
       </div>
 
+      <div className="border-t border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950">
+        <button
+          onClick={() => setShowClearConfirm(true)}
+          disabled={clearing}
+          className="rounded-md bg-red-600 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+        >
+          {clearing ? 'Exiting...' : 'Exit'}
+        </button>
+      </div>
+
       {addingSlot && (
         <AddPatientModal
           timeSlot={addingSlot}
@@ -222,6 +221,29 @@ export function ReservationGrid() {
           onDelete={handleDeletePatient}
           onClose={() => setSelectedPatient(null)}
         />
+      )}
+
+      {showClearConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-xs rounded-xl bg-white p-5 shadow-xl dark:bg-zinc-900">
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowClearConfirm(false)}
+                disabled={clearing}
+                className="flex-1 rounded-lg border border-zinc-300 py-2.5 text-base font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleClearAll}
+                disabled={clearing}
+                className="flex-1 rounded-lg bg-red-600 py-2.5 text-base font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+              >
+                {clearing ? 'Exiting...' : 'Exit'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
